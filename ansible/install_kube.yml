@@ -1,0 +1,46 @@
+---
+- hosts: ali-jenkins
+  vars:
+    kubectlVer: v1.11.9
+    sudoers: kube
+    proxy_env:
+      http_proxy: http://proxy_hk.astarup.com:39628
+
+  tasks:
+  - name: Download kubectl form source
+    get_url:
+      url:  https://storage.googleapis.com/kubernetes-release/release/{{ kubectlVer }}/bin/linux/amd64/kubectl
+      dest: /usr/local/bin/kubectl
+      mode: u=rwx,g=rx,o=rx
+      use_proxy: yes
+#    environment: "{{proxy_env}}"
+
+  - name: Makesure kube config dir has exist
+    file:
+      path: /home/kube/.kube/
+      state: directory
+      owner: "{{ item }}"
+      group: "{{ item }}"
+      mode: u=rwx,g=rx,o=rx
+    with_items: "{{ sudoers }}"
+
+  - name: Copy local kube-conf to remote hosts
+    copy:
+      src: production-k8s.kubeconfig
+      dest: /home/kube/.kube/config
+      mode: u=rwx,g=rw,o=r
+      owner: "{{ item }}"
+      group: "{{ item }}"
+    with_items: "{{ sudoers }}"
+
+  - name: Verify kubectl client   
+    shell: kubectl cluster-info
+    register: kube_result
+    become_user: kube
+    become: yes
+
+  - name: Makrsure kubectl available
+    debug:
+      msg: "{{ kube_result }}"
+    when: kube_result.rc == 0
+    

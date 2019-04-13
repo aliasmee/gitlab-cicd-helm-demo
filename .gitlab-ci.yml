@@ -1,0 +1,85 @@
+stages:
+  - build
+  - test
+  - release
+  - deploy
+
+variables:
+  # CI_DEBUG_TRACE: "true"
+  DOCKER_DRIVER: overlay2
+
+  # application domain name
+  QA_DOMAIN_NAME: minions.demo.hi42.top
+  PROD_DOMAIN_NAME: minions.hi42.top
+  CHART_PATH: ./charts/minions
+  INGRESS_CLASS_NAME: nginx-ingress-intranet
+  
+  CI_REGISTRY: docker.io
+  CONTAINER_PROJECT: hanyifeng/minions
+  CONTAINER_IMAGE: $CI_REGISTRY/$CONTAINER_PROJECT
+  CONTAINER_TAG: $CI_COMMIT_SHORT_SHA
+  # variables 好像不支持这样嵌套赋值。。。Ref:https://docs.gitlab.com/ee/ci/variables/where_variables_can_be_used.html#gitlab-runner-internal-variable-expansion-mechanism
+  # CONTAINER_BUILT_IMAGE: "$CONTAINER_IMAGE:$CONTAINER_TAG"
+  # CONTAINER_RELEASE_IMAGE: "$CONTAINER_IMAGE:latest"
+
+  # Kubernetes config
+  STAGE_NAMESPACE: qa
+  PROD_NAMESPACE: production
+  STAGE_RELEASE_NAME: minions-qa
+  PROD_RELEASE_NAME: minions-product
+  
+before_script:
+  - echo "Hello Minions"
+
+build:
+  stage: build
+  script:
+    - docker login -u ${CI_REGISTRY_USER} -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - echo "Building image..."
+    - docker build --pull -t $CONTAINER_IMAGE:$CONTAINER_TAG .
+    - echo "Pushing to ${CI_REGISTRY}..."
+    - docker push $CONTAINER_IMAGE:$CONTAINER_TAG
+  tags:
+    - shell
+
+
+test1:
+  stage: test
+  script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - echo "do unit test"
+    - docker pull $CONTAINER_IMAGE:$CONTAINER_TAG
+  tags:
+    - shell
+
+release-image:
+  stage: release
+  script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker pull $CONTAINER_IMAGE:$CONTAINER_TAG
+    - docker tag $CONTAINER_IMAGE:$CONTAINER_TAG $CONTAINER_IMAGE:latest
+    - docker push $CONTAINER_IMAGE:latest
+  tags:
+    - shell
+
+deploy_qa:
+  stage: deploy
+  script:
+    - helm upgrade --install
+      --set image.repository=$CONTAINER_IMAGE
+      --set image.tag=$CONTAINER_TAG
+      --set image.pullPolicy=Always
+      --set ingress.enabled=true
+      --set ingress.annotations."kubernetes\.io/ingress\.class"=$INGRESS_CLASS_NAME
+      --set ingress.hosts[0]=$QA_DOMAIN_NAME
+      --set ingress.enabled=true --set ingress.tls[0].hosts[0]=$QA_DOMAIN_NAME
+      --set ingress.tls[0].secretName=demo-hi42-top
+      --set service.port="8080"
+      --wait
+      --namespace=$STAGE_NAMESPACE
+      $STAGE_RELEASE_NAME $CHART_PATH
+  environment:
+    name: staging
+    url: $QA_DOMAIN_NAME
+  tags:
+    - shell

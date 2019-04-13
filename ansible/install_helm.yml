@@ -1,0 +1,25 @@
+---
+- hosts: ali-jenkins
+  vars:
+    helmVer: v2.13.1
+    sudoers: kube
+
+  tasks:
+  - name: Download helm form source
+    get_url:
+      url: https://storage.googleapis.com/kubernetes-helm/helm-{{ helmVer }}-linux-amd64.tar.gz
+      dest: /tmp/helm-{{ helmVer }}.tar.gz
+      mode: u=rwx,g=rx,o=rx
+
+  - name: Tar helm tar.gz
+    shell: tar -zxvf /tmp/helm-{{ helmVer }}.tar.gz -C /tmp
+
+  - name: Mv helm command to /usr/local/bin
+    copy:
+      remote_src: yes
+      src: /tmp/linux-amd64/helm
+      dest: /usr/local/bin/helm
+      mode: u=rwx,g=rx,o=rx
+
+  - name: Verify helm available
+    shell: helm help
