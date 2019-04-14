@@ -44,6 +44,8 @@ build:
 
 
 test1:
+  variables:
+    GIT_STRATEGY: none
   stage: test
   script:
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
@@ -53,6 +55,8 @@ test1:
     - shell
 
 release-image:
+  variables:
+    GIT_STRATEGY: none
   stage: release
   script:
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
@@ -63,6 +67,8 @@ release-image:
     - shell
 
 deploy_qa:
+  variables:
+    GIT_STRATEGY: none
   stage: deploy
   script:
     - helm upgrade --install
